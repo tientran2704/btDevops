@@ -1,0 +1,38 @@
+      - name: Deploy to production server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd LearnKing
+            ls -la
+            # Write docker-compose file
+            echo "${{ secrets.DOCKER_COMPOSE_FILE }}" > docker-compose.yml
+            # Verify docker-compose file
+            docker-compose config || {
+              echo "Error in Docker Compose file:";
+              docker-compose config;
+              exit 1;
+            }
+            # Login to Docker Hub
+            echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+            # Pull new images
+            docker-compose pull
+            # Stop and remove old containers if they exist
+            docker ps -a --filter "name=leaarking-backend-net" --format '{{.ID}}' | xargs -r docker stop || true
+            docker ps -a --filter "name=leaarking-backend-net" --format '{{.ID}}' | xargs -r docker rm || true
+            # Start containers
+            docker-compose up -d
+            # Clean up old images
+            docker image prune -f
+            # Wait for containers to start and verify deployment
+            timeout 60 bash -c '
+              until docker-compose ps | grep "Up"; do
+                echo "Waiting for containers to start...";
+                sleep 5;
+              done
+            ' || exit 1
