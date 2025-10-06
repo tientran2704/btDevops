@@ -1,19 +1,23 @@
-version: '3.8'
-
+version: "3.8"
 services:
-  backend-learnking:
+  api:
     build:
-      context: ./learnking.server
-      dockerfile: Dockerfile
-    image: ${DOCKER_USERNAME}/learnking-backend-net:latest
-    container_name: learnking-backend-net
+      context: .
+      dockerfile: Dockerfile.api
+    image: learnking-api:latest
+    ports:
+      - "8086:86"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
-    networks:
-      - app-network
-    restart: always
+      - ASPNETCORE_ENVIRONMENT=Development
+    restart: unless-stopped
 
-networks:
-  app-network:
-    driver: bridge
+  nodeapp:
+    build:
+      context: ./node-app   # nếu node code ở folder node-app; nếu ở root -> context: .
+      dockerfile: Dockerfile.node
+    image: learnking-node:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
