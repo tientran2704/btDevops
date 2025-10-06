@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  backend-learnking:
+    build:
+      context: ./learnking.server
+      dockerfile: Dockerfile
+    image: ${DOCKER_USERNAME}/learnking-backend-net:latest
+    container_name: learnking-backend-net
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+    networks:
+      - app-network
+    restart: always
+
+networks:
+  app-network:
+    driver: bridge
