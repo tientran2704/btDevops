@@ -51,4 +51,4 @@ jobs:
           DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
         run: |
           docker-compose -f docker-compose.yml build --build-arg BUILDKIT_INLINE_CACHE=1
-          docker-compose -f docker-compose.yml push backend-learnking
+          docker-compose -f docker-compose.yml push nodeapp
