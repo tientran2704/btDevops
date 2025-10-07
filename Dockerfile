@@ -1,40 +1,45 @@
-# Dockerfile.api (multi-stage) — save as Dockerfile.api in repo root
-# Stage 1: Build
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-WORKDIR /src
-
-# Copy solution and project csproj for layer caching.
-# IMPORTANT: these paths must exist relative to the build context.
-COPY ["LearnKing.sln", "./"]
-COPY ["LearnKing.Application/*.csproj", "LearnKing.Application/"]
-COPY ["LearnKing.Common/*.csproj", "LearnKing.Common/"]
-COPY ["LearnKing.Domain/*.csproj", "LearnKing.Domain/"]
-COPY ["LearnKing.Infrastructure/*.csproj", "LearnKing.Infrastructure/"]
-COPY ["LearnKing.Api/*.csproj", "LearnKing.Api/"]
-
-# restore using the solution
-RUN dotnet restore "LearnKing.sln"
-
-# Copy the rest of sources and publish
-COPY . .
-RUN dotnet publish "LearnKing.Api/LearnKing.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
-
-# Stage 2: Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+# === Build stage ===
+FROM node:20.9-alpine AS builder
 WORKDIR /app
 
-# Copy publish output
-COPY --from=build /app/publish ./
+# Copy package files first for better cache
+COPY package*.json ./
 
-# Environment settings — make sure port matches EXPOSE / compose mapping
-ENV ASPNETCORE_URLS=http://+:86 \
-    DOTNET_RUNNING_IN_CONTAINER=true \
-    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+# Install all deps (dev + prod) to allow builds
+RUN npm ci
 
-# Remove debug files to shrink image (optional)
-RUN find /app -name "*.pdb" -delete || true && \
-    find /app -name "*.xml" -delete || true
+# Copy source
+COPY . .
 
-EXPOSE 86
+# Optional build: only runs when you pass --build-arg BUILD=true and package.json has a build script
+ARG BUILD=false
+RUN if [ "$BUILD" = "true" ] && grep -q "\"build\"" package.json; then npm run build; fi
 
-ENTRYPOINT ["dotnet", "LearnKing.Api.dll"]
+# Remove devDependencies to make the app production-ready in the layer we will copy
+RUN npm prune --production
+
+# === Production stage ===
+FROM node:20.9-alpine AS production
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Copy app (including pruned node_modules) from builder
+COPY --from=builder /app /app
+
+# Set env
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Ensure correct permissions before switching user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 3000
+
+# Use npm start (expects package.json "start": "node app.js")
+CMD ["npm", "start"]

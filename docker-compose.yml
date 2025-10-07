@@ -1,23 +1,26 @@
 version: "3.8"
-services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-    image: learnking-api:latest
-    ports:
-      - "8086:86"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-    restart: unless-stopped
 
+services:
   nodeapp:
     build:
-      context: ./node-app   # nếu node code ở folder node-app; nếu ở root -> context: .
+      context: .
       dockerfile: Dockerfile.node
     image: learnking-node:latest
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
+      NODE_ENV: production
+      PORT: 3000
     restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  app-network:
+    driver: bridge

@@ -1,0 +1,36 @@
+# Production-ready Node.js image (Alpine)
+FROM node:20.9-alpine AS base
+
+# Create app dir and use non-root user
+WORKDIR /app
+# create a non-root user to run the app
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Copy package files first (leverage Docker layer cache)
+COPY package*.json ./
+
+# Install dependencies deterministically
+# If you have package-lock.json use `npm ci` instead of `npm install`
+RUN npm ci --only=production
+
+# Copy app source
+COPY . .
+
+# Ensure the non-root user owns app files
+RUN chown -R appuser:appgroup /app
+
+# Set environment for production
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 3000
+
+# Healthcheck (optional but helpful)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD wget -qO- http://127.0.0.1:3000/ || exit 1
+
+# Start app
+CMD ["npm", "start"]
